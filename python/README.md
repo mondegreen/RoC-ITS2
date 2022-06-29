@@ -89,7 +89,7 @@ python make-consensus.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-impr
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-consensus.fa
 ```
 
-Below is a bash subroutine that can be used to distribute these steps for all reads across N processors on a single machine that can be used in lieu of a more robust workflow/pipeline system. 
+Below is a snippet of bash script that can be used to distribute these steps for all reads across N processors on a single machine that can be used in lieu of a more robust workflow/pipeline system. 
 
 ```bash
 task(){
