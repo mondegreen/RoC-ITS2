@@ -2,7 +2,7 @@
 
 For these examples, we will be working with the fastq output of the guppy basecaller - in this case __barcode06.fq__.
 
-## Prerequisits
+## Prerequisites
 
 ### Python Libraries
 
