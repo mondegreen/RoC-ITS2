@@ -11,7 +11,7 @@ For these examples, we will be working with the fastq output of the guppy baseca
 
 ### External programs 
 
- - MAFFT : https://mafft.cbrc.jp/alignment/software/
+ - MAFFT : https://mafft.cbrc.jp/alignment/software/ (no extensions are necessary)
  - CONSENT-correct : https://github.com/morispi/CONSENT
  - PRANK : https://github.com/morispi/CONSENT
  - PROBCONS : http://probcons.stanford.edu/
