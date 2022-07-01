@@ -14,7 +14,7 @@ Muscle:
 https://github.com/rcedgar/muscle/
 
 Prank:
-http://wasabiapp.org/
+http://wasabiapp.org/software/prank/
 
 Hmmer:
 http://hmmer.org/
