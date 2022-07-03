@@ -48,10 +48,16 @@ python skim-subseqs.py \
   --max-insert 3500 \
   --barcode-consensus-cutoff .65
 ```
-The output will create a fasta and fastq file for the subreads in the following format:
+The output will create a fasta and fastq file for the subreads in the following format (where the first two letters of the Nanopore read_id are used to create a series of sub-directories):
 
 - 01/0152ca78-23d6-4944-a0a0-ca4fda370bd8-subreads.fa
 - 01/0152ca78-23d6-4944-a0a0-ca4fda370bd8-subreads.fq
+
+Each of these sub-reads needs to be processed to be aligned to generate a consensus sequence that corresponds to a RoC-ITS read. This is done through a series of processing steps (described in detail below) but that can be done in bulk and in parallel with the generateConsensi.sh bash script.
+
+```bash
+bash generateConsensi 20
+```
 
 Next we use CONSENT-correct to use the overlapping nature of the subreads to correct each subread.
 
@@ -87,41 +93,4 @@ Finally, the corrected subreads are used to generate a putative consensus sequen
 python make-consensus.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
   --read 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-consensus.fa
-```
-
-Below is a snippet of bash script that can be used to distribute these steps for all reads across N processors on a single machine that can be used in lieu of a more robust workflow/pipeline system. 
-
-```bash
-task(){
-  BASE=`basename $1 -subreads.fq`
-  DIR=`dirname $1`
-
-  CONSENT-correct --in ${DIR}/${BASE}-subreads.fq \
-    --out ${DIR}/${BASE}-corrected.fa --type ONT
-
-  prank -F -o=${DIR}/${BASE}-corrected \
-    -d=${DIR}/${BASE}-corrected.fa > /dev/null
-
-  python smush-msa.py --msa ${DIR}/${BASE}-corrected.best.fas \
-    > ${DIR}/${BASE}-corrected-smushed.best.fas
-
-  python improve-msa.py --msa ${DIR}/${BASE}-corrected-smushed.best.fas \
-    --max-cores 2 --word-size 12 > ${DIR}/${BASE}-smushed-improved.fa
-
-  echo "working on ${DIR}/${BASE}-subreads"
-  python make-consensus.py --msa ${DIR}/${BASE}-smushed-improved.fa \
-    --read ${BASE} > ${DIR}/${BASE}-consensus.fa
-}
-
-N=25
-
-for FILE in reads5/*/*-subreads.fq
-  do
-    ((i=i%N));
-    ((i++==0)) && wait
-    task $FILE&
-  done
-  cat reads5/*/*-consensus.fa > consensi-5plus-subreads.fa
-done
-
 ```
