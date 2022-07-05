@@ -41,11 +41,8 @@ for FILE in $DIRR/*/*-subreads.fq
     ((i++==0)) && wait
     task $FILE&
   done
-  cat $DIRR/*/*-consensus.fa > $out
-done
 
 for FILE in $DIRR/*/*-consensus.fa
   do
     cat $FILE > $out
   done
-done
