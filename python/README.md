@@ -33,7 +33,7 @@ hmmsearch \
  --domtblout barcode06-dom.out \
  joint.hmm \
  barcode06.fa \
- barcode06-hmm.out
+ > barcode06-hmm.out
 ```
 The following step performs quality control on the generated subreads. Subreads longer than --max-insert or shorter than --min-insert are excluded from further analysis. Then for each subread, the 5' and 3' barcodes from the adjoining joint sequences are extracted when processed and aligned via MAFFT. This alignment is then analyzed to identify and remove reads containing mixed subreads. 
 
