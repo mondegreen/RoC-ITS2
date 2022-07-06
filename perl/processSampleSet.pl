@@ -30,11 +30,13 @@ Options:
     -pid                  Clustering percent identity (times 10 so 970 equals 97.0%)
     -identifier           Identifier to uniquely describe sample intermediate files
     -jobs                 Max number of concurrent jobs
+    -chimeraDb            (Optional) File containing the trusted reference sequences. If not provided, the input file is clustered as is.
     -rocitsPath           Full path to where RoC-ITS scripts are located
 
     -reference            (Optional) Reference indicating safe identifiers
     -muscle               (Optional) Full path to Muscle executable
     -probcons             (Optional) Full path to probcons executable
+    -vsearch              (Optional) Full path to vsearch executable
     -context              (Optional) Region around variable bases to keep (default 2)
 
 =head1 DESCRIPTION
@@ -46,8 +48,8 @@ percent identity.
 
 =cut
 
-my ($help, $log, $reset, $input, $workDir, $minClstPercent, $minClst, $overrideMinCnt, $reference, $id, $jobs);
-my ($muscleBin, $probconsBin, $rocitsPath, $context);
+my ($help, $log, $reset, $input, $workDir, $minClstPercent, $minClst, $overrideMinCnt, $reference, $chimeradb, $id, $jobs);
+my ($muscleBin, $probconsBin, $rocitsPath, $context, $vsearchBin);
 
 BEGIN: {
   GetOptions(
@@ -60,11 +62,13 @@ BEGIN: {
     "minSize=s"         => \$minClst,
     "context=s"         => \$context,
     "overrideMinCnt:s"  => \$overrideMinCnt,
+    "chimeraDb=s"       => \$chimeradb,
     "identifier=s"      => \$id,
     "maxJobs:s"         => \$jobs,
     "rocitsPath=s"      => \$rocitsPath,
     "reference:s"       => \$reference,
     "muscle:s"          => \$muscleBin,
+    "vsearch:s"         => \$vsearchBin,
     "probcons:s"        => \$probconsBin,
   ) || pod2usage(2);
   pod2usage(1) if defined($help);
@@ -73,6 +77,7 @@ BEGIN: {
 $reference = "NotAnIdentifierX" unless defined($reference);
 $jobs = 40 unless defined($jobs);
 $muscleBin = "muscle" unless defined($muscleBin);
+$vsearchBin = "vsearch" unless defined($vsearchBin);
 $probconsBin = "probcons" unless defined($probconsBin);
 $minClstPer = $minClstPercent;
 while ($minClstPer > 1) {
@@ -94,8 +99,20 @@ $cmd = "mkdir -p $workDir";
 runCommand($cmd, $log, __LINE__);
 
 ### Perform initial multiple sequence alignment w/ muscle
+my $vsearchOut = "$workDir/$id.noChim.fa";
+if ($chimeradb) {
+  $cmd = "$vsearchBin --db $chimeradb --uchime_ref $input --nonchimeras $vsearchOut";
+} else {
+  $cmd = "cp $input $vsearchOut";
+}
+my $size = -s $vsearchOut;
+if ($reset || !$size) {
+  runCommand($cmd, $log, __LINE__);
+}
+
+### Perform initial multiple sequence alignment w/ muscle
 my $muscleOut = "$workDir/$id.musc.fa";
-$cmd = "$muscleBin -in $input -out $muscleOut";
+$cmd = "$muscleBin -super5 $vsearchOut -threads $jobs -output $muscleOut";
 my $size = -s $muscleOut;
 if ($reset || !$size) {
   runCommand($cmd, $log, __LINE__);
@@ -138,6 +155,8 @@ $cmd = "perl $rocitsPath/findBoundaries.pl -msa $correctedOut";
 my $bounds = execCommand($cmd, $log, __LINE__);
 chomp $bounds;
 my @bounds = split /\s+/,$bounds;
+$bounds[0] += 10;
+$bounds[1] += 10;
 print "LOG: Left bound = $bounds[0] Right bound = $bounds[1]: $0 line ",__LINE__,"\n";
 
 my ($variantRegionsOut,$functionalRegionsOut,$cdhitOut);
@@ -186,7 +205,7 @@ $cmd = "perl /N/projects/rollingITS/drusch/RocSplint/subgroup8ecoli/processCDHit
 print STDERR $cmd,"\n";
 #system($cmd);
 
-$cmd = "perl $rocitsPath/associateSequencesWithClusters.pl -rocitsPath $rocitsPath -log $log -clstr $loc/$cdhitOut.clstr -minSize $minCnt | grep nt | perl $rocitsPath/createSubclusters.pl -rocitsPath $rocitsPath -log $log -selected - -clstr $loc/$cdhitOut.clstr -fasta $loc/$functionalRegionsOut -baseName picked.$id2.clusters -addCount 1";
+$cmd = "perl $rocitsPath/associateSequencesWithClusters.pl -rocitsPath $rocitsPath -log $log -clstr $loc/$cdhitOut.clstr -minSize $minCnt | grep nt | perl $rocitsPath/createSubclusters.pl -rocitsPath $rocitsPath -log $log -selected - -clstr $loc/$cdhitOut.clstr -fasta $loc/$correctedOut -baseName picked.$id2.clusters -addCount 1";
 runCommand($cmd, $log, __LINE__);
 
 #$cmd = "perl /N/projects/rollingITS/drusch/RocSplint/subgroup8ecoli/processCDHitCluster2.pl $loc/$id2.cd-hit.regions.fa.clstr $minCnt | grep nt | perl /N/projects/rollingITS/drusch/RocSplint/subgroup8ecoli/selectClusters.pl - $loc/$id2.cd-hit.regions.fa.clstr $loc/$id.functional.regions.fa picked.clusters 1";
@@ -209,10 +228,12 @@ foreach my $i (@files) {
 
 my $list = join " ",sort {$a <=> $b;} @ids;
 my $ofh = new FileHandle(">process.sh");
+print $ofh "setenv PATH $ENV{PATH}\n";
 print $ofh "foreach I ( $list )\n";
-print $ofh "  $muscleBin -in picked.$id2.clusters.\$I.fa -out picked.$id2.clusters.\$I.muscle.fa -diags ; perl $rocitsPath/improveMSA.pl -log $log -maxJobs $jobs -msa picked.$id2.clusters.\$I.muscle.fa -wordSize 8 -minimumCov 3 -probcons $probconsBin -local . -rocitsPath $rocitsPath -out picked.$id2.clusters.\$I.muscle.improved.fa;  ; perl $rocitsPath/makeConsensus.pl -msa picked.$id2.clusters.\$I.muscle.improved.fa -rocitsPath $rocitsPath -output picked.$id2.clusters.\$I.muscle.improved.consensus.fa\n";
+print $ofh "  $muscleBin -super5 picked.$id2.clusters.\$I.fa -threads $jobs -output picked.$id2.clusters.\$I.muscle.fa; perl $rocitsPath/improveMSA.pl -log $log -maxJobs $jobs -msa picked.$id2.clusters.\$I.muscle.fa -wordSize 8 -minimumCov 3 -probcons $probconsBin -local . -rocitsPath $rocitsPath -out picked.$id2.clusters.\$I.muscle.improved.fa;  ; perl $rocitsPath/makeConsensus.pl -msa picked.$id2.clusters.\$I.muscle.improved.fa -rocitsPath $rocitsPath -output picked.$id2.clusters.\$I.muscle.improved.consensus.fa\n";
 print $ofh "end\n";
 $ofh->close();
+$cmd = "$muscleBin -super5 $vsearchOut -threads $jobs -output $muscleOut";
 
 $cmd = "tcsh -x process.sh";
 runCommand($cmd, $log, __LINE__);
