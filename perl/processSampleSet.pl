@@ -30,7 +30,7 @@ Options:
     -pid                  Clustering percent identity (times 10 so 970 equals 97.0%)
     -identifier           Identifier to uniquely describe sample intermediate files
     -jobs                 Max number of concurrent jobs
-    -chimeraDb            File containing the trusted reference sequences
+    -chimeraDb            (Optional) File containing the trusted reference sequences. If not provided, the input file is clustered as is.
     -rocitsPath           Full path to where RoC-ITS scripts are located
 
     -reference            (Optional) Reference indicating safe identifiers
