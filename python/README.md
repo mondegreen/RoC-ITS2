@@ -2,20 +2,6 @@
 
 For these examples, we will be working with the fastq output of the guppy basecaller - in this case __barcode06.fq__.
 
-## Prerequisites
-
-### Python Libraries
-
-- biopython : https://github.com/biopython/biopython
-- seaborn : https://seaborn.pydata.org/
-
-### External programs 
-
- - MAFFT : https://mafft.cbrc.jp/alignment/software/ (no extensions are necessary)
- - CONSENT-correct : https://github.com/morispi/CONSENT/releases/tag/v2.2.2
- - PRANK : http://wasabiapp.org/software/prank/
- - PROBCONS : http://probcons.stanford.edu/
-
 First, we must alter the fastq file so that the sequence and quality strings are each on a single line. Guppy generates quality scores outside of the range expected by vsearch by default, so we increase the maximum quality score to 90.
 
 ```bash
