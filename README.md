@@ -33,7 +33,7 @@ Be sure to add these programs to your PATH
 
 There is a multi-stage processing approach that takes raw RoC-ITS reads and ultimately generates clusters of distinct 16S-ITS operons associated with a particular genera:
 
-1) Run python processes to generate RoC-ITS sequences from RoC-ITS reads
-2) Run perl to organize RoC-ITS sequences roughly into genera
-3) Run perl to further cluster individual genera groupings into distinct RoC-ITS operons
+1) Run the python pipeline to generate RoC-ITS sequences from the raw Nanopore RoC-ITS reads
+2) Run the perl pipeline to organize RoC-ITS sequences roughly into genera
+3) Run the perl pipeline to further cluster individual genera groupings into distinct RoC-ITS operons
 
