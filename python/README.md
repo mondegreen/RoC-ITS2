@@ -11,41 +11,40 @@ vsearch \
   --fasta_width 0 \
   --fastaout barcode06.fa
 ```
-Next we use hmmsearch to split the nanopore reads on the library joint sequence, effectively separating the full reads into subreads.
+Next we use nhmmer to split the nanopore reads on the library joint sequence, effectively separating the full reads into subreads.
 
 ```bash
-hmmsearch \
- --cpu 15 \
- --domtblout barcode06-dom.out \
- joint.hmm \
- barcode06.fa \
- barcode06-hmm.out
+nhmmer \
+  --cpu 2 \
+  --tblout barcode06-tbl.out \
+  --noali \
+  joint.hmm \
+  barcode06.fa \
+  > barcode06-nhmm.out
 ```
-The following step performs quality control on the generated subreads. Subreads longer than --max-insert or shorter than --min-insert are excluded from further analysis. Then for each subread, the 5' and 3' barcodes from the adjoining joint sequences are extracted when processed and aligned via MAFFT. This alignment is then analyzed to identify and remove reads containing mixed subreads. 
+The following step performs quality control on the generated subreads. Subreads longer than --max-insert or shorter than --min-insert are excluded from further analysis. Then for each subread, the 5' and 3' barcodes from the adjoining joint sequences are extracted when processed and aligned via MAFFT. This alignment is then analyzed to identify and remove reads containing mixed subreads. By default only reads with at least 5 candidate subreads and barcode coverage from at least 3 candidate subreads are reported. These cutoffs can be customized with the --min-coverage and --min-barcode-coverage parameters.
 
-Ths script generates a report listing the fate of each read and subread in the dataset, as well as up to 5 directories containing hashed details for all reads with one or more remaining subread. We recommend using only reads with 5 or more subreads (the reads5 directory), but reads with fewer subreads are reported and can be processed.
+Ths script generates a report listing the fate of each read and subread in the dataset, as well as a directories containing hashed details for all reads meeting the quality control cutoff.
 
 ```bash
-python skim-subseqs.py \
+python extract-subseqs.py \
   --base barcode06 \
-  --hmm barcode06-hmm.out \
+  --hmm barcode06-tbl.out \
   --reads barcode06.fq \
   --min-insert 1500 \
   --max-insert 3500 \
   --barcode-consensus-cutoff .65
 ```
+
 This will result in a directory with the following structure:
 ```bash
-filtered-subread-length-hist.png
-read-list.tsv
-reads1
-reads2
-reads3
-reads4
-reads5
-subread-length-hist.png
-subread-list.tsv
+barcode06
+barcode06-filtered-subread-length-hist.png
+barcode06-read-list.tsv
+barcode06-subread-length-hist.png
+barcode06-subread-list.tsv
 ```
+
 The png files show histograms describing the length of the sub-reads. The subread-list.tsv is a tab-delimited file describing each of the sub-reads with the following columns:
 1) unique ID of nanopore read
 2) begin coordinate of the sub-read
@@ -67,14 +66,14 @@ b7ab8f72-a2c3-4f42-b57f-159717d38c7e    1160    3621    2126    335     4.5e-160
 
 The read-list.tsv is a tab-delimited file with the following columns:
 1) unique ID of nanopore read
-2) something
-3) something
+2) number of candidate subreads
+3) number of filtered subreads
 4) average length of sub-reads
-5) something
-6) flag
-7) something
+5) did the read pass QC filtering?
+6) readon read failed QC filtering
+7) 5' barcode count
 8) 5' barcade consensus
-9) something
+9) 3' barcode count
 10) 3' barcode consensus
 
 Here is an example:
@@ -84,7 +83,7 @@ f548e84f-d909-4250-8c90-b958b4631b42    20      0       2178.8947368421054      
 d2f19bb4-1627-4323-9921-080e5e67f28a    0       52      None    None    False   Minimum Barcode Coverage        0       None    0       None
 ```
 
-The reads[12345] directories contain the subreads with 1, 2, 3, 4, or 5+ subreads in them. Within each of the directories, the script will create a fasta and fastq file for the subreads in the following format (where the first two letters of the Nanopore read_id are used to create a series of sub-directories):
+The 'barcode06' directory contains the subread data, the script will create a fasta and fastq file for the subreads in the following format (where the first two letters of the Nanopore read_id are used to create a series of sub-directories):
 
 - 01/0152ca78-23d6-4944-a0a0-ca4fda370bd8-subreads.fa
 - 01/0152ca78-23d6-4944-a0a0-ca4fda370bd8-subreads.fq

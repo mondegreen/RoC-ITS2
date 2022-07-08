@@ -6,22 +6,32 @@ import seaborn as sns
 from math import log
 from statistics import mean, stdev
 
+import re
+from collections import defaultdict
+
 from Bio import SearchIO, SeqIO, SeqRecord, Seq, AlignIO
 from Bio.Align import AlignInfo
 from Bio.Align.Applications import MafftCommandline
 from io import StringIO
 
+from dataclasses import dataclass
+
 if sys.version_info[0] < 3:
     raise Exception("Python 3 or a more recent version is required.")
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--base', required=True, help='Basename for output')
+parser.add_argument('--base', required=True, help='Basename for output files and directory name for subreads')
 parser.add_argument('--hmm', required=True, help='HMMSearch results')
 parser.add_argument('--min-insert', default=1500, type=int, help='minimum insert size')
 parser.add_argument('--max-insert', default=3500, type=int, help='maximum insert size')
+parser.add_argument('--min-coverage', default=5, type=int,
+                     help='minimum number of inserts required to proceed')
+parser.add_argument('--min-barcode-coverage', default=3, type=int,
+                    help='minimun number of each barcode required to proceed')
 parser.add_argument('--barcode-consensus-cutoff', default=.65, type=float,
                      help='minimum portion of read agreement to call base in barcode')
 parser.add_argument('--reads', required=True, help='fastq file with reads')
+
 args = parser.parse_args()
 
 class Read:
@@ -32,6 +42,8 @@ class Read:
     MIN_INSERT = args.min_insert
     MAX_INSERT = args.max_insert
     MIN_BARCODE_CON = args.barcode_consensus_cutoff
+    MIN_COVERAGE = args.min_coverage
+    MIN_BARCODE_COV = args.min_barcode_coverage
 
     def __init__(self, hit):
         self.hit = hit
@@ -83,9 +95,8 @@ class Read:
                 seqs.append(record)
 
             # if we don't have enough barcodes, skip this part
-            subread_count = len(self.subreads)
             self.barcode_coverage[barcode] = len(seqs)
-            if self.barcode_coverage[barcode] < min(max(subread_count-2, 1),3):
+            if self.barcode_coverage[barcode] < Read.MIN_BARCODE_COV:
                 if self.passed:
                     self.passed = False
                     self.fail_step = 'Minimum Barcode Coverage'
@@ -183,20 +194,15 @@ class Read:
         return counter
 
     @classmethod
-    def write_subreads(cls, root):
+    def write_subreads(cls):
 
-        roots = [False]
-        for x in [ '/reads1', '/reads2', '/reads3', '/reads4', '/reads5' ]:
-            roots.append(root+x)
-
-        for x in roots:
-            if not os.path.exists(x):
-                os.makedirs(x)
+        if not os.path.exists(args.base):
+            os.makedirs(args.base)
 
         for r in [r for r in Read.reads if r.passed]:
             sub_i = min(len(r.subreads), 5)
             index = r.name[0:2]
-            path = roots[sub_i] + '/' + index
+            path = args.base + '/' + index
             if not os.path.exists(path):
                 os.makedirs(path)
             path += f'/{r.name}'
@@ -227,6 +233,11 @@ class Read:
             r.subreads_filtered = r.subread_count - kept_count
             r.subread_count = kept_count
             r.subreads = kept
+
+            # see if we failed
+            if r.subread_count < Read.MIN_COVERAGE and r.passed:
+                r.passed = False
+                r.fail_step = 'Minimum Coverage'
 
 class Subread:
     '''A detected subread - separated by joint sequence'''
@@ -266,14 +277,49 @@ class Subread:
 
         return '\t'.join([f'{x}' for x in values])
 
+@dataclass
+class HSP:
+    '''An HSP or envelope in the nhmmer'''
+    query_start : int
+    query_end : int
+    hit_start : int
+    hit_end : int
+    evalue : str
+
+class Hit:
+    '''A Hit with nhmmer'''
+
+    def __init__(self, id, hsps):
+        self.id = id
+        self.hsps = hsps
 
 def parse_reads(file):
     return {v.id:v for v in SeqIO.parse(file, 'fastq')}
 
 def parse_hmm(file):
 
-    res = SearchIO.read(file, 'hmmer3-text')
-    [Read(hit) for hit in res]
+    re_tab = re.compile("\s+")
+    hit_map = defaultdict(list)
+
+    with open(file) as f:
+        for line in f:
+            if line[0] == '#':
+                continue
+            fields = re_tab.split(line)
+            hsp = HSP(int(fields[4])-1, int(fields[5]), int(fields[6])-1, int(fields[7]), fields[12])            
+            hit_map[fields[0]].append(hsp)
+
+    for id, hsps in hit_map.items():
+        #print(f'{id}')
+        #print(hsps)
+        hsps.sort(key=lambda x: x.hit_start)
+        #print(hsps)
+        hit = Hit(id, hsps)
+        Read(hit)
+
+            
+
+#    [Read(hit) for hit in res]
 
 SEQS = parse_reads(args.reads)
 
@@ -287,15 +333,15 @@ if __name__ == '__main__':
         os.makedirs(dir_name)
 
     # write subread report
-    Read.write_subread_report(dir_name+'/subread-list.tsv')
+    Read.write_subread_report(dir_name+'-subread-list.tsv')
 
     # print raw subread length distribution
-    Read.plot_insert_distribution(dir_name+'/subread-length-hist.png')
+    Read.plot_insert_distribution(dir_name+'-subread-length-hist.png')
 
     # apply length and minimum coverage filter
     Read.length_filter()
 
-    Read.plot_insert_distribution(dir_name+'/filtered-subread-length-hist.png')
+    Read.plot_insert_distribution(dir_name+'-filtered-subread-length-hist.png')
 
     # align barcodes and filter on consensus quality and barcode count
     Read.align_barcodes()
@@ -304,11 +350,10 @@ if __name__ == '__main__':
     Read.build_statistics()
 
     # build read report
-    Read.write_read_report(dir_name+'/read-list.tsv')
+    Read.write_read_report(dir_name+'-read-list.tsv')
 
-    # write fastx output - we no longer assume reads directory
-    Read.write_subreads(dir_name)
-#    Read.write_subreads(dir_name+'/reads')
+    # write fastx output
+    Read.write_subreads()
 
     # build summary
 
