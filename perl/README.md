@@ -1,6 +1,6 @@
 ## Clustering RoC-ITS sequences
 
-The initial clustering step takes the output of the python pipeline (in this case the file test_RoCITS.fa but you could also use the "output" file from the python validation run), extracts the 16S portion of each RoC-ITS sequence and uses the 16S portion to cluster the full length RoC-ITS sequences roughly at the genera-level. The following command will take a fasta file of RoC-ITS sequences and cluster them. Here is an example command:
+The initial clustering step takes the output of the python pipeline (in this case the file provided "test_RoCITS.fa" but you could also use the "output" file from the python validation run), extracts the 16S portion of each RoC-ITS sequence and uses the 16S portion to cluster the full length RoC-ITS sequences roughly at the genera-level. The following command will take a fasta file of RoC-ITS sequences and cluster them. Here is an example command:
 
 ```bash
 perl generateGeneraClusters.pl -input test_RoCITS.fa -outDir rocItsClustersDir -basename test -minsubreads 4 -rocitsPath . -minclstrSize 10
