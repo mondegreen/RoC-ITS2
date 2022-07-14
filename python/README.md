@@ -114,13 +114,13 @@ prank -F -o=0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected \
 Next a python script is used to remove several types of non-informative gaps from the PRANK alignment, speeding up subsequent steps.
 
 ```bash
-python smush-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed-best.fas \
+python3 smush-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed-best.fas \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed.best.fas
 ```
 This step identifies highly conserved anchors of --word-size in the script and then uses PROBCONS to improve the alignment of regions between anchors.
 
 ```bash
-python improve-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed.best.fas \
+python3 improve-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed.best.fas \
   --max-cores 2 \
   --word-size 12 \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa
@@ -128,7 +128,7 @@ python improve-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smush
 Finally, the corrected subreads are used to generate a putative consensus sequence. All subreads are compared to this consensus, and any that fail to match the consensus at certain threshold are removed and a new consensus sequence is generated and the final consensus sequence is reported.
 
 ```bash
-python make-consensus.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
+python3 make-consensus.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
   --read 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-consensus.fa
 ```
