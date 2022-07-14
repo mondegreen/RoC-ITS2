@@ -91,7 +91,7 @@ The 'barcode06' directory contains the subread data, the script will create a fa
 Each of these sub-reads needs to be processed to be aligned to generate a consensus sequence that corresponds to a RoC-ITS read. This is done through a series of processing steps (described in detail below) but that can be done in bulk and in parallel with the generateConsensi.sh bash script.
 
 ```bash
-bash generateConsensi barcode06/reads5 10 output
+bash generateConsensi.sh barcode06/reads5 10 output
 ```
 The parameters are the directory containing the sub-read information (in this case the barcode06 sub-reads where 5+ subreads were found), the number of processors to use, and the output file name. This script is restartable in case it is terminated prematurely.
 
