@@ -2,11 +2,11 @@
 
 For these examples, we will be working with the fastq output of the guppy basecaller - in this case __barcode06.fq__.
 
-First, we must alter the fastq file so that the sequence and quality strings are each on a single line. Guppy generates quality scores outside of the range expected by vsearch by default, so we increase the maximum quality score to 90.
+First, we must alter the fastq file so that the sequence and quality strings are each on a single line. Guppy generates quality scores outside of the range expected by vsearch by default, so we increase the maximum quality score to 90. For validation purposes, use the provided barcode06.subreads=4.fq.gz file. This is a gzipped fastq file containing 251 example RoC-ITS reads, each of which has exactly 4 valid subreads.
 
 ```bash
 vsearch \
-  --fastq_filter barcode06.fq \
+  --fastq_filter barcode06.subreads=4.fq.gz \
   --fastq_qmax 90 \
   --fasta_width 0 \
   --fastaout barcode06.fa
@@ -24,10 +24,10 @@ nhmmer \
 ```
 The following step performs quality control on the generated subreads. Subreads longer than --max-insert or shorter than --min-insert are excluded from further analysis. Then for each subread, the 5' and 3' barcodes from the adjoining joint sequences are extracted when processed and aligned via MAFFT. This alignment is then analyzed to identify and remove reads containing mixed subreads. By default only reads with at least 5 candidate subreads and barcode coverage from at least 3 candidate subreads are reported. These cutoffs can be customized with the --min-coverage and --min-barcode-coverage parameters.
 
-Ths script generates a report listing the fate of each read and subread in the dataset, as well as a directories containing hashed details for all reads meeting the quality control cutoff.
+Ths script generates a report listing the fate of each read and subread in the dataset, as well as a directories containing hashed details for all reads meeting the quality control cutoff. NOTE that we are setting the min and max coverage to 4 only for testing/validation. During normal running conditions we recommend setting --min-coverage to 5 while --max-coverage can be much higher (default is 100).
 
 ```bash
-python extract-subseqs.py \
+python3 extract-subseqs.py \
   --base barcode06 \
   --hmm barcode06-tbl.out \
   --reads barcode06.fq \
