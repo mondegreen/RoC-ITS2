@@ -33,10 +33,12 @@ python extract-subseqs.py \
   --reads barcode06.fq \
   --min-insert 1500 \
   --max-insert 3500 \
-  --barcode-consensus-cutoff .65
+  --barcode-consensus-cutoff .65 \
+  --min-coverage 4 \
+  --max-coverage 4
 ```
 
-This will result in a directory with the following structure:
+This will result in the following files and directories being added to your current directory:
 ```bash
 barcode06
 barcode06-filtered-subread-length-hist.png
