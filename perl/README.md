@@ -3,16 +3,28 @@
 The initial clustering step takes the output of the python pipeline (in this case the file provided "test_RoCITS.fa" but you could also use the "output" file from the python validation run), extracts the 16S portion of each RoC-ITS sequence and uses the 16S portion to cluster the full length RoC-ITS sequences roughly at the genera-level. The following command will take a fasta file of RoC-ITS sequences and cluster them. Here is an example command:
 
 ```bash
-perl generateGeneraClusters.pl -input test_RoCITS.fa -outDir rocItsClustersDir -basename test -minsubreads 4 -rocitsPath . -minclstrSize 10
+perl generateGeneraClusters.pl -input test_RoCITS.fa -outDir rocItsClustersDir -clusterPid 0.95 -basename test -minsubreads 4 -rocitsPath . -minclstrSize 10
 ```
 
-designed to, but not guarranted to, cluster by genera. We strongly recommend the -minsubreads to be 5 for real data but for this example we have used 4 to provide a quick example case for testing/validation purposes.
+Note that the generateGeneraClusters.pl script is designed to, but not guarranted to, cluster by genera. Clustering occurs based on the 16S gene alone. The inclusiveness of the clustering is largely controlled by the clusterPid parameter which defaults to clustering at 95%. We strongly recommend the -minsubreads to be 5 for real data but for this example we have used 4 to provide a quick example case for testing/validation purposes.
 
 This script will create a directory named by the -outDir option. Within that directory will be a series of fasta files with the format:<br>
 
 test.v1.num=v2.fa<br>
 
 where v1 is the cluster UID and v2 is the number of RoC-ITS sequences that are in it. Given the test data, this will produce 1 cluster with 162 sequences in it.
+
+Internally the script performs several steps:
+
+1. Filter the RoC-ITS sequences based on the number of sub-reads used during construction (default = 10; controlled by the -minsubreads parameter).
+2. Identifying 16S gene within RoC-ITS sequences using regular expressions. This is controlled by two parameters:
+  - -16s_fiveprime (defaults to "CTGAGCCAGGATCAAACTCT")
+  - -16s_threeprime (defaults to "TACGG.TACCTTGTTACGACTT")
+3. Blast step to identify 16S genes that could not be detected by the regular expression but that were nonetheless present
+4. Extraction of the 16S genes
+5. Clustering of the 16S genes using cd-hit-est. This clustering step is largely controlled by the -clusterPid paramter (default = 0.95)
+6. Construction of the output data in directory specified by the -outDir parameter
+
 
 ## Clustering to identify distinct 16S-ITS operons
 
