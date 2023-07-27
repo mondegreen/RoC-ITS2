@@ -83,7 +83,7 @@ system($cmd);
 
 $cmd = "perl $rocitsPath/identify16SBasedOnPrimerSequences.pl $basename.selected.fa $prime3 $prime5 $rocitsPath | perl $rocitsPath/reformatFasta.pl - 0 999999 > $basename.16Sonly.fa";
 print STDERR $cmd,"\n";
-#system($cmd);
+system($cmd);
 
 $cmd = "formatdb -p F -i $basename.16Sonly.fa";
 print STDERR $cmd,"\n";
@@ -91,7 +91,7 @@ system($cmd);
 
 $cmd = "blastall -i $input -d $basename.16Sonly.fa -p blastn -F F -a 20 -X 150 -q -5 -r 4 -v 5 -b 5 -e 1e-120 -m 8 > $basename.blastn.parsed";
 print STDERR $cmd,"\n";
-#system($cmd);
+system($cmd);
 
 $cmd = "perl $rocitsPath/getFullLength16SFromRoCITS.pl $basename.blastn.parsed $basename.16Sonly.fa $input $rocitsPath | sort > extract16S.$basename.sh";
 print STDERR $cmd,"\n";
