@@ -110,6 +110,6 @@ $cmd = "mkdir -p $outdir";
 print STDERR $cmd,"\n";
 system($cmd);
 
-$cmd = "perl $rocitsPath/processCDHitCluster.pl $basename.clustered.out.clstr $minClusterSize $rocitsPath | grep nt | perl $rocitsPath/produceClusters.pl - $basename.clustered.out.clstr $input $outdir/$basename";
+$cmd = "perl $rocitsPath/processCDHitCluster.pl $basename.clustered.out.clstr $minClusterSize $rocitsPath | grep nt | perl $rocitsPath/produceClusters.pl - $basename.clustered.out.clstr $input $outdir/$basename $rocitsPath";
 print STDERR $cmd,"\n";
 system($cmd);
