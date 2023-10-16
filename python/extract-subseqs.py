@@ -25,7 +25,9 @@ parser.add_argument('--hmm', required=True, help='HMMSearch results')
 parser.add_argument('--min-insert', default=1500, type=int, help='minimum insert size')
 parser.add_argument('--max-insert', default=3500, type=int, help='maximum insert size')
 parser.add_argument('--min-coverage', default=5, type=int,
-                     help='minimum number of inserts required to proceed')
+                     help='minimum number of inserts required to proceed (default = 5)')
+parser.add_argument('--max-coverage', default=100, type=int,
+                     help='maximum number of inserts required to proceed (default = 100)')
 parser.add_argument('--min-barcode-coverage', default=3, type=int,
                     help='minimun number of each barcode required to proceed')
 parser.add_argument('--barcode-consensus-cutoff', default=.65, type=float,
@@ -43,6 +45,7 @@ class Read:
     MAX_INSERT = args.max_insert
     MIN_BARCODE_CON = args.barcode_consensus_cutoff
     MIN_COVERAGE = args.min_coverage
+    MAX_COVERAGE = args.max_coverage
     MIN_BARCODE_COV = args.min_barcode_coverage
 
     def __init__(self, hit):
@@ -235,7 +238,7 @@ class Read:
             r.subreads = kept
 
             # see if we failed
-            if r.subread_count < Read.MIN_COVERAGE and r.passed:
+            if (r.subread_count < Read.MIN_COVERAGE or r.subread_count > Read.MAX_COVERAGE) and r.passed:
                 r.passed = False
                 r.fail_step = 'Minimum Coverage'
 
@@ -358,4 +361,3 @@ if __name__ == '__main__':
     # build summary
 
     # print summary
-

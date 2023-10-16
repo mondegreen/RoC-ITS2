@@ -51,17 +51,17 @@ my ($rocitsPath);
 
 BEGIN: {
   GetOptions(
-    "help|h"         => \$help,
-    "log"            => \$log,
-    "input=s"        => \$input,
-    "outDir=s"       => \$outdir,
-    "basename=s"     => \$basename,
-    "rocitsPath=s"   => \$rocitsPath,
-    "minsubreads=s"  => \$minreads,
-    "minclstrSize=s" => \$minClusterSize,
-    "16s_fiveprime"  => \$prime5,
-    "clusterPid"     => \$cPid,
-    "16s_threeprime" => \$prime3,
+    "help|h"            => \$help,
+    "log"               => \$log,
+    "input=s"           => \$input,
+    "outDir=s"          => \$outdir,
+    "basename=s"        => \$basename,
+    "rocitsPath=s"      => \$rocitsPath,
+    "minsubreads=s"     => \$minreads,
+    "minclstrSize=s"    => \$minClusterSize,
+    "16s_fiveprime=s"   => \$prime5,
+    "clusterPid"        => \$cPid,
+    "16s_threeprime=s"  => \$prime3,
   ) || pod2usage(2);
   pod2usage(1) if defined($help);
 }
@@ -77,11 +77,11 @@ $minClusterSize = 10 unless defined($minClusterSize);
 $cPid = 0.95 unless defined($cPid);
 
 my $cmd;
-$cmd = "perl selectFastaBasedOnSubreadCount.pl $input $minreads > $basename.selected.fa";
+$cmd = "perl $rocitsPath/selectFastaBasedOnSubreadCount.pl $input $minreads $rocitsPath > $basename.selected.fa";
 print STDERR $cmd,"\n";
 system($cmd);
 
-$cmd = "perl identify16SBasedOnPrimerSequences.pl $basename.selected.fa $prime3 $prime5 > $basename.16Sonly.fa";
+$cmd = "perl $rocitsPath/identify16SBasedOnPrimerSequences.pl $basename.selected.fa $prime3 $prime5 $rocitsPath | perl $rocitsPath/reformatFasta.pl - 0 999999 > $basename.16Sonly.fa";
 print STDERR $cmd,"\n";
 system($cmd);
 
@@ -93,11 +93,12 @@ $cmd = "blastall -i $input -d $basename.16Sonly.fa -p blastn -F F -a 20 -X 150 -
 print STDERR $cmd,"\n";
 system($cmd);
 
-$cmd = "perl getFullLength16SFromRoCITS.pl $basename.blastn.parsed $basename.16Sonly.fa $input | sort > extract16S.$basename.sh";
+$cmd = "perl $rocitsPath/getFullLength16SFromRoCITS.pl $basename.blastn.parsed $basename.16Sonly.fa $input $rocitsPath | sort > extract16S.$basename.sh";
 print STDERR $cmd,"\n";
 system($cmd);
 
 $cmd = "bash extract16S.$basename.sh > $basename.16S.fa";
+$cmd = "perl $rocitsPath/multiExtract.pl extract16S.$basename.sh $rocitsPath > $basename.16S.fa";
 print STDERR $cmd,"\n";
 system($cmd);
 
@@ -109,6 +110,6 @@ $cmd = "mkdir -p $outdir";
 print STDERR $cmd,"\n";
 system($cmd);
 
-$cmd = "perl $rocitsPath/processCDHitCluster2.pl $basename.clustered.out.clstr $minClusterSize | grep nt | perl $rocitsPath/selectClusters.pl - $basename.clustered.out.clstr $input $outdir/$basename";
+$cmd = "perl $rocitsPath/processCDHitCluster.pl $basename.clustered.out.clstr $minClusterSize $rocitsPath | grep nt | perl $rocitsPath/produceClusters.pl - $basename.clustered.out.clstr $input $outdir/$basename $rocitsPath";
 print STDERR $cmd,"\n";
 system($cmd);

@@ -42,7 +42,10 @@ for FILE in $DIRR/*/*-subreads.fq
     task $FILE&
   done
 
+if test -f $out; then
+    rm $out
+fi
 for FILE in $DIRR/*/*-consensus.fa
   do
-    cat $FILE > $out
+    cat $FILE >> $out
   done

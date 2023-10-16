@@ -2,11 +2,11 @@
 
 For these examples, we will be working with the fastq output of the guppy basecaller - in this case __barcode06.fq__.
 
-First, we must alter the fastq file so that the sequence and quality strings are each on a single line. Guppy generates quality scores outside of the range expected by vsearch by default, so we increase the maximum quality score to 90.
+First, we must alter the fastq file so that the sequence and quality strings are each on a single line. Guppy generates quality scores outside of the range expected by vsearch by default, so we increase the maximum quality score to 90. For validation purposes, use the provided barcode06.subreads=4.fq.gz file. This is a gzipped fastq file containing 251 example RoC-ITS reads, each of which has exactly 4 valid subreads.
 
 ```bash
 vsearch \
-  --fastq_filter barcode06.fq \
+  --fastq_filter barcode06.subreads=4.fq.gz \
   --fastq_qmax 90 \
   --fasta_width 0 \
   --fastaout barcode06.fa
@@ -24,19 +24,21 @@ nhmmer \
 ```
 The following step performs quality control on the generated subreads. Subreads longer than --max-insert or shorter than --min-insert are excluded from further analysis. Then for each subread, the 5' and 3' barcodes from the adjoining joint sequences are extracted when processed and aligned via MAFFT. This alignment is then analyzed to identify and remove reads containing mixed subreads. By default only reads with at least 5 candidate subreads and barcode coverage from at least 3 candidate subreads are reported. These cutoffs can be customized with the --min-coverage and --min-barcode-coverage parameters.
 
-Ths script generates a report listing the fate of each read and subread in the dataset, as well as a directories containing hashed details for all reads meeting the quality control cutoff.
+Ths script generates a report listing the fate of each read and subread in the dataset, as well as a directories containing hashed details for all reads meeting the quality control cutoff. NOTE that we are setting the min and max coverage to 4 only for testing/validation. During normal running conditions we recommend setting --min-coverage to 5 while --max-coverage can be much higher (default is 100).
 
 ```bash
-python extract-subseqs.py \
+python3 extract-subseqs.py \
   --base barcode06 \
   --hmm barcode06-tbl.out \
   --reads barcode06.fq \
   --min-insert 1500 \
   --max-insert 3500 \
-  --barcode-consensus-cutoff .65
+  --barcode-consensus-cutoff .65 \
+  --min-coverage 4 \
+  --max-coverage 4
 ```
 
-This will result in a directory with the following structure:
+This will result in the following files and directories being added to your current directory:
 ```bash
 barcode06
 barcode06-filtered-subread-length-hist.png
@@ -91,7 +93,7 @@ The 'barcode06' directory contains the subread data, the script will create a fa
 Each of these sub-reads needs to be processed to be aligned to generate a consensus sequence that corresponds to a RoC-ITS read. This is done through a series of processing steps (described in detail below) but that can be done in bulk and in parallel with the generateConsensi.sh bash script.
 
 ```bash
-bash generateConsensi barcode06/reads5 10 output
+bash generateConsensi.sh barcode06/reads5 10 output
 ```
 The parameters are the directory containing the sub-read information (in this case the barcode06 sub-reads where 5+ subreads were found), the number of processors to use, and the output file name. This script is restartable in case it is terminated prematurely.
 
@@ -112,13 +114,13 @@ prank -F -o=0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected \
 Next a python script is used to remove several types of non-informative gaps from the PRANK alignment, speeding up subsequent steps.
 
 ```bash
-python smush-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed-best.fas \
+python3 smush-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed-best.fas \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed.best.fas
 ```
 This step identifies highly conserved anchors of --word-size in the script and then uses PROBCONS to improve the alignment of regions between anchors.
 
 ```bash
-python improve-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed.best.fas \
+python3 improve-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smushed.best.fas \
   --max-cores 2 \
   --word-size 12 \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa
@@ -126,7 +128,7 @@ python improve-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smush
 Finally, the corrected subreads are used to generate a putative consensus sequence. All subreads are compared to this consensus, and any that fail to match the consensus at certain threshold are removed and a new consensus sequence is generated and the final consensus sequence is reported.
 
 ```bash
-python make-consensus.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
+python3 make-consensus.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
   --read 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-consensus.fa
 ```
