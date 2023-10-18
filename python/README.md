@@ -4,7 +4,7 @@ For these examples, we will be working with the fastq output of the guppy baseca
 
 ## Running Roc-ITS as a Pipeline
 
-The complete Roc-ITS pipeline can be run using the following command. The individual steps will all be run with default parameters. Below we outline the pipeline step-by-step if you want more control over the individual steps. Specify the maximum number of cores you want to run the pipeline on using the ---max-cores parameter. A directory will be created for all output with the name you supply as --project. Output files will also begin with this name.
+The complete Roc-ITS pipeline can be run using the following command. The individual steps will all be run with default parameters. Below we outline the pipeline step-by-step if you want more control over the individual steps. Specify the maximum number of cores you want to run the pipeline on using the ---max-cores parameter. A directory will be created for all output with the name you supply as --project. Output files will also begin with this name. For this example, the consensus reads will be placed in a file named RocITS-Test/RocITS-Test-consensi.fa .
 
 ```bash
 python3 runRocITS.py \

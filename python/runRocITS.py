@@ -161,4 +161,10 @@ if __name__ == '__main__':
     for worker in workers:
         worker.join()
 
+    # Concatenate consensi
+    with open(f'{args.project}/{args.project}-consensi.fa', 'w') as outfile:
+        for x in glob.glob(f'{args.project}/{args.project}/*/*-consensus.fa'):
+            with open(x) as infile:
+                outfile.write(infile.read())
+
     print('Program Completed.')
