@@ -138,6 +138,7 @@ python3 improve-msa.py --msa 0152ca78-23d6-4944-a0a0-ca4fda370bd8-corrected-smus
   --max-cores 2 \
   --word-size 12 \
   > 0152ca78-23d6-4944-a0a0-ca4fda370bd8-smushed-improved.fa
+```
 
 Finally, the corrected subreads are used to generate a putative consensus sequence. All subreads are compared to this consensus, and any that fail to match the consensus at certain threshold are removed and a new consensus sequence is generated and the final consensus sequence is reported.
 
