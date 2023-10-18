@@ -8,17 +8,41 @@ import sys
 import tempfile
 import subprocess
 import re
+import time
 
 if sys.version_info[0] < 3:
     raise Exception("Python 3 or a more recent version is required.")
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--msa', required=True, help='MSA containing processed subreads')
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--msa', help='MSA containing processed subreads')
 parser.add_argument('--max-cores', type=int, default=4, help='Maximum number of cores to use')
 parser.add_argument('--scan', action='store_true', help='Print number of regions and exit')
+parser.add_argument('--benchmark', action='store_true',
+                    help='Print the time script starts and ends to the project log file')
+parser.add_argument('--pipeline', action='store_true',
+                    help='Pipeline base path [project/prefix/subread]')
+parser.add_argument('--base', help='Output base. Required for pipeline or benchmark')
 parser.add_argument('--word-size', type=int, default=12,
                     help='Word size to use')
 args = parser.parse_args()
+
+# configure based on if part of a pipeline
+if args.pipeline:
+    if args.base is None:
+        parser.error('You must provide --base with --pipeline')
+    args.max_cores = 1
+    args.benchmark = True
+    args.msa = f'{args.base}-corrected-smushed.best.fas'
+    if os.path.exists(f'{args.base}-improve-msa.benchmark'):
+        quit()
+    output = open(f'{args.base}-smushed-improved.fa', 'w')
+
+else:
+    if args.msa is None:
+        parser.error('You must provide either --msa or --pipeline')
+    if args.benchmark and args.base is None:
+        parser.error('You must provide --base with --benchmark')
+    output = sys.stdout
 
 class Region:
     '''A region across the alignent that will be evaluated'''
@@ -81,6 +105,9 @@ def run_job(fin, fout):
     subprocess.run(['probcons', '-c', '0', fin], stdout=f, check=True)
 
 if __name__ == '__main__':
+
+    if args.benchmark:
+        start_time = time.time()
 
     # bracket our sequences with 22 ns on each side
     GGGS = 'n' * 22
@@ -169,4 +196,11 @@ if __name__ == '__main__':
         )
         records.append(record)
 
-    FastaIO.FastaWriter(sys.stdout, wrap=None).write_file(records)
+    FastaIO.FastaWriter(output, wrap=None).write_file(records)
+
+    # finish
+    if args.benchmark:
+        end_time = time.time()
+        with open(f'{args.base}-improve-msa.benchmark', 'a') as bf:
+            bf.write(f'{start_time}\n')
+            bf.write(f'{end_time}\n')

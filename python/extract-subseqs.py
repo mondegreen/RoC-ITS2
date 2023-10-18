@@ -1,8 +1,10 @@
 import sys
 import os
 import argparse
+import time
 import tempfile
 import seaborn as sns
+import matplotlib.pyplot as plt
 from math import log
 from statistics import mean, stdev
 
@@ -19,22 +21,39 @@ from dataclasses import dataclass
 if sys.version_info[0] < 3:
     raise Exception("Python 3 or a more recent version is required.")
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--base', required=True, help='Basename for output files and directory name for subreads')
-parser.add_argument('--hmm', required=True, help='HMMSearch results')
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--project', required=True, help='Basename for output files and directory name for subreads')
+parser.add_argument('--pipeline', action='store_true', help='This script is being called as part of the pipeline')
+parser.add_argument('--hmm', help='HMMSearch results')
 parser.add_argument('--min-insert', default=1500, type=int, help='minimum insert size')
 parser.add_argument('--max-insert', default=3500, type=int, help='maximum insert size')
 parser.add_argument('--min-coverage', default=5, type=int,
-                     help='minimum number of inserts required to proceed (default = 5)')
+                    help='minimum number of inserts required to proceed')
 parser.add_argument('--max-coverage', default=100, type=int,
-                     help='maximum number of inserts required to proceed (default = 100)')
+                    help='maximum number of inserts allowed to proceed')
 parser.add_argument('--min-barcode-coverage', default=3, type=int,
                     help='minimun number of each barcode required to proceed')
 parser.add_argument('--barcode-consensus-cutoff', default=.65, type=float,
                      help='minimum portion of read agreement to call base in barcode')
-parser.add_argument('--reads', required=True, help='fastq file with reads')
+parser.add_argument('--reads', help='fastq file with reads')
+parser.add_argument('--benchmark', action='store_true', help='Print the time script starts and ends to the project log file')
 
 args = parser.parse_args()
+
+# if pipeline isn't supplied, we need hmm and reads
+if args.pipeline is None and args.hmm is None:
+    parser.error('You must either supply an hmm file with --hmm or run as part of a pipeline --pipeline')
+if args.pipeline is None and args.reads is None:
+    parser.error('You must either supply a fasta file with --reads or run as part of a pipeline --pipeline')
+
+# if a pipeline, we put it in a subdirectory
+if args.pipeline:
+    args.benchmark = True
+    args.project = f'{args.project}/{args.project}'
+    args.hmm = f'{args.project}-tbl.out'
+    args.reads = f'{args.project}.fq'
+    if os.path.exists(f'{args.project}-extract-subseqs.benchmark'):
+        quit()
 
 class Read:
     '''A collection of Subreads'''
@@ -48,7 +67,7 @@ class Read:
     MAX_COVERAGE = args.max_coverage
     MIN_BARCODE_COV = args.min_barcode_coverage
 
-    def __init__(self, hit):
+    def __init__(self, hit, is_reversed):
         self.hit = hit
         self.name = hit.id
         self.subreads = []
@@ -62,6 +81,7 @@ class Read:
         self.passed = True
         self.fail_step = ''
         self.align = {}
+        self.is_reversed = is_reversed
 
         # retrieve our sequence
         if self.name not in SEQS:
@@ -69,19 +89,39 @@ class Read:
         self.seq = SEQS[self.name]
         self.length = len(self.seq)
 
+        # are we reverse complemented?
+        self.rev_ratio = self.__countReversed()
+        if self.rev_ratio > .25:
+            self.passed = False
+            self.fail_step = 'Mixed Insert Orientation'
         self.__processHSPs()
         Read.reads.append(self)
 
+    def __countReversed(self):
+        '''Count the portion of HSPs that are reversed.'''
+        hsps = 0
+        rev_hsps = 0
+        for hsp in self.hit.hsps:
+            hsps += 1
+            if hsp.is_reversed:
+                rev_hsps += 1
+        return rev_hsps / hsps
+
     def __processHSPs(self):
         '''process the read from left to right processing subreads'''
+
         start = 0
         end = self.length
         for hsp in self.hit.hsps:
-            sub = Subread(self, start, hsp)
-            self.subreads.append(sub)
-            self.subread_count += 1
-            start = sub.end
-
+            # do not split on reversed hsps, but tag current subread
+            if hsp.is_reversed:
+                continue
+            else:
+                sub = Subread(self, start, hsp)
+                self.subreads.append(sub)
+                self.subread_count += 1
+                start = sub.end
+        
     def __align_barcodes(self):
         '''align both the 5' and 3' barcode for the read'''
         for barcode in [5, 3]:
@@ -155,6 +195,64 @@ class Read:
         fig.clf()
 
     @classmethod
+    def plot_read_length_histogram(cls,name):
+        reads = []
+        for read in Read.reads:
+            reads.append(read.length)
+        sns_hist = sns.histplot(reads, log_scale = 10)
+        fig = sns_hist.get_figure()
+        fig.savefig(name)
+        # matplotlib is garbage at the OOP, so cleanup
+        fig.clf()
+
+    @classmethod
+    def plot_hsp_histogram(cls,name):
+        reads = []
+        for read in Read.reads:
+            hsps = read.hit.hsps
+            reads.append(len(hsps))
+        sns_hist = sns.histplot(reads)
+        fig = sns_hist.get_figure()
+        fig.savefig(name)
+        # matplotlib is garbage at the OOP, so cleanup
+        fig.clf()
+
+    @classmethod
+    def plot_subread_histogram(cls,name):
+        reads = []
+        for read in Read.reads:
+            reads.append(read.subread_count)
+        sns_hist = sns.histplot(reads)
+        fig = sns_hist.get_figure()
+        fig.savefig(name)
+        # matplotlib is garbage at the OOP, so cleanup
+        fig.clf()
+
+    @classmethod
+    def plot_status_piechart(cls,name):
+        status = defaultdict(int)
+        seen = 0
+        for read in Read.reads:
+            seen += 1
+            if read.passed == True:
+                status['Pass QC'] += 1
+            else:
+                status[read.fail_step] += 1
+        status['No HSPs'] = len(SEQS) - seen
+        labels = []
+        counts = []
+        keys = list(status.keys())
+        keys.sort()
+        for x in keys:
+            labels.append(x)
+            counts.append(status[x])
+        plt.pie(counts, labels = labels)
+        plt.savefig(name)
+        fig = plt.gcf()
+        fig.clf()
+            
+
+    @classmethod
     def write_subread_report(cls, file):
         '''Write subread information to file'''
         f = open(file, 'w+')
@@ -166,7 +264,11 @@ class Read:
     @classmethod
     def write_read_report(cls, file):
         '''Write read information to file'''
+        headers = ['Name', 'Read Length', 'Subread Count', '# of Subreads Filtered', 'Mean Insert Length',
+                   'Insert Length SD', 'Passed QC?', 'Fail Step', '5\' Barcode Coverage',
+                   '5\' Barcode', '3\' Barcode Coverage', '3\' Barcode', 'Reverse Oriented?', 'Portion of Wrongly Oriented HSPs']
         f = open(file, 'w+')
+        f.write('\t'.join(headers) + '\n')
         for r in Read.reads:
             f.write(str(r)+'\n')
         f.close()
@@ -174,6 +276,7 @@ class Read:
     def __str__(self):
         '''string override'''
         values = [self.name,
+                  self.length,
                   self.subread_count,
                   self.subreads_filtered,
                   self.insert_length_mean,
@@ -184,6 +287,8 @@ class Read:
                   self.barcodes[5],
                   self.barcode_coverage[3],
                   self.barcodes[3],
+                  self.is_reversed,
+                  self.rev_ratio
                   ]
 
         return '\t'.join([f'{x}' for x in values])
@@ -199,13 +304,10 @@ class Read:
     @classmethod
     def write_subreads(cls):
 
-        if not os.path.exists(args.base):
-            os.makedirs(args.base)
-
         for r in [r for r in Read.reads if r.passed]:
             sub_i = min(len(r.subreads), 5)
             index = r.name[0:2]
-            path = args.base + '/' + index
+            path = args.project + '/' + index
             if not os.path.exists(path):
                 os.makedirs(path)
             path += f'/{r.name}'
@@ -232,15 +334,20 @@ class Read:
         for r in Read.reads:
             kept = [i for i in r.subreads if ( i.insert_length <= Read.MAX_INSERT
                                                and i.insert_length >= Read.MIN_INSERT )]
+
             kept_count = len(kept)
             r.subreads_filtered = r.subread_count - kept_count
             r.subread_count = kept_count
             r.subreads = kept
 
             # see if we failed
-            if (r.subread_count < Read.MIN_COVERAGE or r.subread_count > Read.MAX_COVERAGE) and r.passed:
+            if r.subread_count < Read.MIN_COVERAGE and ( r.passed or r.fail_step == 'Mixed Insert Orientation' ):
                 r.passed = False
                 r.fail_step = 'Minimum Coverage'
+
+            if r.subread_count > Read.MAX_COVERAGE and ( r.passed or r.fail_step == 'Mixed Insert Orientation' ):
+                r.passed = False
+                r.fail_step = 'Maximum Coverage'
 
 class Subread:
     '''A detected subread - separated by joint sequence'''
@@ -257,6 +364,11 @@ class Subread:
         self.hit_length = hsp.query_end - hsp.query_start
 
         self.barcodes = { 5 : None, 3 : None }
+        
+        # check for backwards joint
+        # shouldn't be any of these left
+        if hsp.is_reversed:
+            print('next hit is backwards')
 
         # check for 5' barcode
         if hsp.query_start == 0 and hsp.hit_start >= 5:
@@ -288,6 +400,14 @@ class HSP:
     hit_start : int
     hit_end : int
     evalue : str
+    is_reversed : bool = False
+
+    def __post_init__(self):
+        if self.hit_end < self.hit_start:
+            tmp = self.hit_end
+            self.hit_end = self.hit_start
+            self.hit_start = tmp
+            self.is_reversed = True
 
 class Hit:
     '''A Hit with nhmmer'''
@@ -300,7 +420,50 @@ def parse_reads(file):
     return {v.id:v for v in SeqIO.parse(file, 'fastq')}
 
 def parse_hmm(file):
+    '''Parse the HMM tbl.out file and determine which reads are reverse complemented'''
+    re_tab = re.compile('\s+')
+    hsp_map = defaultdict(list)
+    ori_map = defaultdict(lambda: {'+' : 0, '-' : 0 })
 
+    # read in all the lines and save them and record orientation
+    with open(file) as f:
+        for line in f:
+            if line[0] == '#':
+                continue
+            fields = re_tab.split(line)
+            ori_map[fields[0]][fields[11]] += 1
+            hsp_map[fields[0]].append([int(fields[4]), int(fields[5]), int(fields[6]),
+                                       int(fields[7]), fields[11], fields[12]])
+
+    # reverse reads where appropriate
+    for read,cnt in ori_map.items():
+        is_reversed = False
+
+        if cnt['-'] > cnt['+']:
+            is_reversed = True
+            seq_len = len(SEQS[read])
+
+            # rc the read
+            SEQS[read] = SEQS[read].reverse_complement()
+          
+            # edit the hsp information for these
+            for hsp in hsp_map[read]:
+                hsp[2] = seq_len - hsp[2] + 1
+                hsp[3] = seq_len - hsp[3] + 1
+                hsp[4] = '+' if '-' else '-'
+
+        hsps = []
+
+        # now load the reads
+        for x in hsp_map[read]:
+            hsp = HSP(x[0]-1, x[1], x[2]-1, x[3], x[5])
+            hsps.append(hsp)
+        hsps.sort(key=lambda x: x.hit_start)
+        hit = Hit(read, hsps)
+        Read(hit, is_reversed)
+
+def parse_hmm2(file):
+    '''Instatiate Read and Subread objects'''
     re_tab = re.compile("\s+")
     hit_map = defaultdict(list)
 
@@ -327,9 +490,12 @@ def parse_hmm(file):
 SEQS = parse_reads(args.reads)
 
 if __name__ == '__main__':
+
+    if args.benchmark:
+        start_time = time.time()
+
     parse_hmm(args.hmm)
-    #dir_name = args.base + '-subreads'
-    dir_name = args.base
+    dir_name = args.project
 
     # create the dir if it doesnt exist
     if not os.path.exists(dir_name):
@@ -358,6 +524,21 @@ if __name__ == '__main__':
     # write fastx output
     Read.write_subreads()
 
+    Read.plot_read_length_histogram(dir_name+'-read-length-hist.png')
+
+    # plot status piechart
+    Read.plot_status_piechart(dir_name+'-read-status-piechart.png')
+    Read.plot_hsp_histogram(dir_name+'-hsp-count-hist.png')
+    Read.plot_subread_histogram(dir_name+'-subread-count-hist.png')
+
     # build summary
 
     # print summary
+
+    # finish
+    if args.benchmark:
+        end_time = time.time()
+        with open(f'{args.project}-extract-subseqs.benchmark', 'a') as bf:
+            bf.write(f'{start_time}\n')
+            bf.write(f'{end_time}\n')
+
