@@ -2,6 +2,20 @@
 
 For these examples, we will be working with the fastq output of the guppy basecaller - in this case __barcode06.fq__.
 
+## Running Roc-ITS as a Pipeline
+
+The complete Roc-ITS pipeline can be run using the following command. The individual steps will all be run with default parameters. Below we outline the pipeline step-by-step if you want more control over the individual steps. Specify the maximum number of cores you want to run the pipeline on using the ---max-cores parameter. A directory will be created for all output with the name you supply as --project. Output files will also begin with this name.
+
+```bash
+python3 runRocITS.py \
+  --max-cores 8 \
+  --reads barcode06.fq \
+  --project RocITS-Test \
+  --joint-hmm joint.hmm
+```
+
+## Detailed Roc-ITS Steps
+
 First, we must alter the fastq file so that the sequence and quality strings are each on a single line. Guppy generates quality scores outside of the range expected by vsearch by default, so we increase the maximum quality score to 90. For validation purposes, use the provided barcode06.subreads=4.fq.gz file. This is a gzipped fastq file containing 251 example RoC-ITS reads, each of which has exactly 4 valid subreads.
 
 ```bash

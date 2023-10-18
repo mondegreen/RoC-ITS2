@@ -3,16 +3,38 @@ from Bio import SeqIO, SeqRecord, Seq
 from Bio.SeqIO import FastaIO
 import sys
 import argparse
+import os
+import time
 
 if sys.version_info[0] < 3:
     raise Exception("Python 3 or a more recent version is required.")
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--msa', required=True, help='MSA containing processed subreads')
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--msa', help='MSA containing processed subreads')
+parser.add_argument('--benchmark', action='store_true',
+                    help='Print the time script starts and ends to the project log file')
+parser.add_argument('--pipeline', action='store_true',
+                    help='Pipeline base path [project/prefix/subread]')
+parser.add_argument('--base', help='Output base. Required for pipeline or benchmark')
 parser.add_argument('--read', required=True, help='Name of the read')
 args = parser.parse_args()
 
+# configure based on if part of a pipeline
+if args.pipeline:
+    if args.base is None:
+        parser.error('You must provide --base with --pipeline')
+    args.benchmark = True
+    args.msa = f'{args.base}-smushed-improved.fa'
+    if os.path.exists(f'{args.base}-make-consensus.benchmark'):
+        quit()
+    output = open(f'{args.base}-consensus.fa', 'w')
 
+else:
+    if args.msa is None:
+        parser.error('You must provide either --msa or --pipeline')
+    if args.benchmark and args.base is None:
+        parser.error('You must provide --base with --benchmark')
+    output = sys.stdout
 
 def score_seq(seq, con):
     '''return portion of matches with supplied consensus'''
@@ -52,6 +74,9 @@ def do_iteration(seqs):
 
 if __name__ == '__main__':
 
+    if args.benchmark:
+        start_time = time.time()
+
     seqs = []
     for record in SeqIO.parse(args.msa, 'fasta'):
         seqs.append(record.seq.upper())
@@ -65,11 +90,18 @@ if __name__ == '__main__':
         (s2, consensus) = do_iteration(seqs)
 
 
-
-record = SeqRecord.SeqRecord(
-    Seq.Seq(consensus.replace('-','')),
-    id=args.read,
-    description=f'/subreads={len(s2)} /consensus={score_alignment(s2,consensus):.4f} /removed-subreads={orig_len-len(s2)}'
+    record = SeqRecord.SeqRecord(
+        Seq.Seq(consensus.replace('-','')),
+        id=args.read,
+        description=f'/subreads={len(s2)} /consensus={score_alignment(s2,consensus):.4f} /removed-subreads={orig_len-len(s2)}'
 )
 
-FastaIO.FastaWriter(sys.stdout, wrap=None).write_file([record])
+    FastaIO.FastaWriter(output, wrap=None).write_file([record])
+
+    # finish
+    if args.benchmark:
+        end_time = time.time()
+        with open(f'{args.base}-make-consensus.benchmark', 'a') as bf:
+            bf.write(f'{start_time}\n')
+            bf.write(f'{end_time}\n')
+
